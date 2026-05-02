@@ -1,0 +1,24 @@
+{
+  "name": "Youth Soccer Sub Tracker",
+  "short_name": "Sub Tracker",
+  "description": "Track youth soccer field time, goalie time, and substitutions.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#f7f3ea",
+  "theme_color": "#176b4d",
+  "icons": [
+    {
+      "src": "./apple-touch-icon.png",
+      "sizes": "180x180",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "./icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

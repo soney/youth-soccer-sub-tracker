@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-labelledby="title">
+  <title id="title">Sub Tracker icon</title>
+  <rect width="512" height="512" rx="96" fill="#176b4d"/>
+  <circle cx="256" cy="256" r="156" fill="#f7f3ea"/>
+  <path d="M256 96l58 43-22 68h-72l-22-68 58-43z" fill="#17211c"/>
+  <path d="M120 224l76-17 43 59-36 62-73-2-38-66 28-36z" fill="#17211c"/>
+  <path d="M392 224l28 36-38 66-73 2-36-62 43-59 76 17z" fill="#17211c"/>
+  <path d="M211 389l45-63 45 63-45 29-45-29z" fill="#17211c"/>
+  <path d="M216 207h80l45 62-25 78H196l-25-78 45-62z" fill="#f0b429"/>
+  <path d="M201 120l-33 91-48 13a156 156 0 0 1 81-104z" fill="#17211c"/>
+  <path d="M311 120a156 156 0 0 1 81 104l-48-13-33-91z" fill="#17211c"/>
+  <path d="M133 334l72 2 42 59-34 16a156 156 0 0 1-80-77z" fill="#17211c"/>
+  <path d="M379 334a156 156 0 0 1-80 77l-34-16 42-59 72-2z" fill="#17211c"/>
+</svg>
