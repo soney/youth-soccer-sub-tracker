@@ -540,6 +540,38 @@ h2 {
   font-variant-numeric: tabular-nums;
 }
 
+.time-adjustments {
+  display: grid;
+  gap: 6px;
+  border-radius: 8px;
+  padding: 8px;
+  background: rgba(255, 255, 255, 0.56);
+}
+
+.adjust-row {
+  display: grid;
+  grid-template-columns: minmax(54px, 1fr) 54px 54px;
+  gap: 6px;
+  align-items: center;
+}
+
+.adjust-row span {
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 850;
+  text-transform: uppercase;
+}
+
+.adjust-button {
+  min-height: 36px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fff;
+  color: var(--ink);
+  font-size: 0.84rem;
+  font-weight: 850;
+}
+
 .card-actions button {
   flex: 1;
 }
@@ -559,6 +591,85 @@ h2 {
   padding: 18px;
   background: rgba(255, 255, 255, 0.55);
   color: var(--muted);
+}
+
+.history-panel {
+  display: grid;
+  gap: 10px;
+  margin-top: 16px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 12px;
+  background: var(--panel);
+}
+
+.history-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.history-list {
+  display: grid;
+  gap: 8px;
+  max-height: 280px;
+  overflow: auto;
+}
+
+.history-item {
+  display: grid;
+  grid-template-columns: 74px minmax(0, 1fr);
+  gap: 10px;
+  border-left: 4px solid var(--line);
+  border-radius: 8px;
+  padding: 8px 10px;
+  background: #f8f6f0;
+}
+
+.history-item.is-field {
+  border-left-color: var(--green);
+}
+
+.history-item.is-bench,
+.history-item.is-sub {
+  border-left-color: var(--gold);
+}
+
+.history-item.is-keeper {
+  border-left-color: var(--blue);
+}
+
+.history-item.is-adjust {
+  border-left-color: var(--coral);
+}
+
+.history-item strong,
+.history-item span {
+  display: block;
+  font-size: 0.78rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.history-item span {
+  color: var(--muted);
+  margin-top: 2px;
+}
+
+.history-item p {
+  min-width: 0;
+  margin: 0;
+  font-size: 0.9rem;
+  font-weight: 750;
+  overflow-wrap: anywhere;
+}
+
+.history-empty {
+  border: 1px dashed #c9c1b0;
+  border-radius: 8px;
+  padding: 12px;
+  color: var(--muted);
+  font-weight: 750;
 }
 
 .link-button {

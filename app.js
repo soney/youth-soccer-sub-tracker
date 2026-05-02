@@ -3,6 +3,8 @@ const MIN_PLAYERS_ON_FIELD = 1;
 const MAX_PLAYERS_ON_FIELD = 18;
 const MIN_SUB_INTERVAL_MINUTES = 0;
 const MAX_SUB_INTERVAL_MINUTES = 30;
+const MINUTE_MS = 60 * 1000;
+const MAX_HISTORY_ENTRIES = 120;
 
 const fallbackState = {
   playersOnField: 7,
@@ -13,7 +15,8 @@ const fallbackState = {
   running: false,
   lastTick: null,
   activeView: "field",
-  roster: []
+  roster: [],
+  history: []
 };
 
 let state = loadState();
@@ -45,6 +48,8 @@ const elements = {
   lineupNotice: document.querySelector("#lineupNotice"),
   playerList: document.querySelector("#playerList"),
   fieldEmptyState: document.querySelector("#fieldEmptyState"),
+  historyList: document.querySelector("#historyList"),
+  clearHistoryButton: document.querySelector("#clearHistoryButton"),
   tabs: document.querySelectorAll(".tab"),
   fieldView: document.querySelector("#fieldView"),
   rosterView: document.querySelector("#rosterView"),
@@ -84,7 +89,8 @@ function loadState() {
       running: Boolean(saved.running),
       lastTick: saved.lastTick ? Number(saved.lastTick) : null,
       activeView: saved.activeView === "roster" ? "roster" : "field",
-      roster: Array.isArray(saved.roster) ? saved.roster.map(normalizePlayer) : []
+      roster: Array.isArray(saved.roster) ? saved.roster.map(normalizePlayer) : [],
+      history: Array.isArray(saved.history) ? saved.history.map(normalizeHistoryEntry).filter(Boolean) : []
     };
   } catch {
     return createFallbackState();
@@ -94,7 +100,8 @@ function loadState() {
 function createFallbackState() {
   return {
     ...fallbackState,
-    roster: []
+    roster: [],
+    history: []
   };
 }
 
@@ -113,6 +120,20 @@ function normalizePlayer(player) {
 function sanitizeId(value) {
   const id = String(value).replace(/[^a-zA-Z0-9:._-]/g, "");
   return id || createId();
+}
+
+function normalizeHistoryEntry(entry) {
+  if (!entry || !entry.message) {
+    return null;
+  }
+
+  return {
+    id: sanitizeId(entry.id || createId()),
+    message: String(entry.message).slice(0, 140),
+    type: String(entry.type || "info").replace(/[^a-z-]/g, "") || "info",
+    gameMs: normalizeMs(entry.gameMs),
+    wallTime: normalizeMs(entry.wallTime) || Date.now()
+  };
 }
 
 function normalizeMs(value) {
@@ -319,6 +340,18 @@ function formatTime(ms) {
   return `${pad(minutes)}:${pad(seconds)}`;
 }
 
+function formatSignedMinutes(ms) {
+  const minutes = Math.abs(Math.round(ms / MINUTE_MS));
+  return `${ms >= 0 ? "+" : "-"}${minutes}m`;
+}
+
+function formatWallTime(timestamp) {
+  return new Date(timestamp).toLocaleTimeString([], {
+    hour: "numeric",
+    minute: "2-digit"
+  });
+}
+
 function pad(value) {
   return String(value).padStart(2, "0");
 }
@@ -338,6 +371,21 @@ function activePlayers() {
 
 function keeper() {
   return state.roster.find((player) => player.onField && player.goalie) || null;
+}
+
+function findPlayer(playerId) {
+  return state.roster.find((player) => player.id === playerId) || null;
+}
+
+function addHistory(message, type = "info") {
+  state.history.unshift({
+    id: createId(),
+    message,
+    type,
+    gameMs: state.gameMs,
+    wallTime: Date.now()
+  });
+  state.history = state.history.slice(0, MAX_HISTORY_ENTRIES);
 }
 
 function orderedPlayers(now) {
@@ -407,6 +455,7 @@ function render() {
 
   renderPlayerList(now);
   renderRosterList();
+  renderHistoryList();
   elements.fieldEmptyState.hidden = state.roster.length > 0;
 }
 
@@ -539,12 +588,45 @@ function renderPlayerCard(player, now, nextIn, nextOut) {
           <strong>${goalieTime}</strong>
         </div>
       </div>
+      <div class="time-adjustments" aria-label="Manual time adjustments for ${escapeHtml(player.name)}">
+        <div class="adjust-row">
+          <span>Field</span>
+          <button class="adjust-button" type="button" data-action="adjust-time" data-kind="field" data-delta="-${MINUTE_MS}" data-id="${player.id}" aria-label="Subtract 1 minute field time for ${escapeHtml(player.name)}">-1m</button>
+          <button class="adjust-button" type="button" data-action="adjust-time" data-kind="field" data-delta="${MINUTE_MS}" data-id="${player.id}" aria-label="Add 1 minute field time for ${escapeHtml(player.name)}">+1m</button>
+        </div>
+        <div class="adjust-row">
+          <span>Goalie</span>
+          <button class="adjust-button" type="button" data-action="adjust-time" data-kind="goalie" data-delta="-${MINUTE_MS}" data-id="${player.id}" aria-label="Subtract 1 minute goalie time for ${escapeHtml(player.name)}">-1m</button>
+          <button class="adjust-button" type="button" data-action="adjust-time" data-kind="goalie" data-delta="${MINUTE_MS}" data-id="${player.id}" aria-label="Add 1 minute goalie time for ${escapeHtml(player.name)}">+1m</button>
+        </div>
+      </div>
       <div class="card-actions">
         <button class="secondary-action" type="button" data-action="toggle-field" data-id="${player.id}" ${canAdd ? "" : "disabled"}>${toggleText}</button>
         <button class="secondary-action keeper-button ${player.goalie && player.onField ? "is-active" : ""}" type="button" data-action="toggle-keeper" data-id="${player.id}" ${player.onField ? "" : "disabled"}>Keeper</button>
       </div>
     </article>
   `;
+}
+
+function renderHistoryList() {
+  elements.clearHistoryButton.disabled = state.history.length === 0;
+
+  if (!state.history.length) {
+    elements.historyList.innerHTML = '<div class="history-empty">No substitutions yet</div>';
+    return;
+  }
+
+  elements.historyList.innerHTML = state.history.slice(0, 80).map((entry) => {
+    return `
+      <article class="history-item is-${escapeHtml(entry.type)}">
+        <div>
+          <strong>${escapeHtml(formatTime(entry.gameMs))}</strong>
+          <span>${escapeHtml(formatWallTime(entry.wallTime))}</span>
+        </div>
+        <p>${escapeHtml(entry.message)}</p>
+      </article>
+    `;
+  }).join("");
 }
 
 function renderRosterList() {
@@ -585,7 +667,7 @@ function toggleTimer() {
 }
 
 function resetTimes() {
-  const confirmed = window.confirm("Reset all game, field, and goalie times?");
+  const confirmed = window.confirm("Reset all game, field, goalie times, and history?");
   if (!confirmed) {
     return;
   }
@@ -593,6 +675,7 @@ function resetTimes() {
   const now = Date.now();
   state.gameMs = 0;
   state.lastSubAtGameMs = 0;
+  state.history = [];
   stopSubAlertLoop();
   state.roster.forEach((player) => {
     player.fieldMs = 0;
@@ -613,6 +696,7 @@ function benchAll() {
     player.goalie = false;
   });
   if (hadActivePlayers) {
+    addHistory("Bench all players", "bench");
     resetSubCountdown();
   }
   saveState();
@@ -652,6 +736,7 @@ function markSubDone() {
   primeAudio();
   accrueTime();
   resetSubCountdown();
+  addHistory("Sub timer reset", "sub");
   saveState();
   render();
 }
@@ -679,8 +764,25 @@ function testSoundAlert() {
   playAlertSound(true);
 }
 
+function adjustPlayerTime(playerId, kind, deltaMs) {
+  const player = findPlayer(playerId);
+  const prop = kind === "goalie" ? "goalieMs" : "fieldMs";
+  if (!player || !Number.isFinite(deltaMs)) {
+    return;
+  }
+
+  accrueTime();
+  const before = player[prop];
+  player[prop] = Math.max(0, before + deltaMs);
+  if (player[prop] !== before) {
+    addHistory(`${player.name} ${formatSignedMinutes(deltaMs)} ${kind === "goalie" ? "goalie" : "field"} time`, "adjust");
+    saveState();
+  }
+  render();
+}
+
 function togglePlayerField(playerId) {
-  const player = state.roster.find((item) => item.id === playerId);
+  const player = findPlayer(playerId);
   if (!player) {
     return;
   }
@@ -696,6 +798,7 @@ function togglePlayerField(playerId) {
   if (!player.onField) {
     player.goalie = false;
   }
+  addHistory(`${player.name} ${player.onField ? "to field" : "to bench"}`, player.onField ? "field" : "bench");
   if (wasOnField && !player.onField) {
     resetSubCountdown();
   }
@@ -704,7 +807,7 @@ function togglePlayerField(playerId) {
 }
 
 function toggleKeeper(playerId) {
-  const player = state.roster.find((item) => item.id === playerId);
+  const player = findPlayer(playerId);
   if (!player || !player.onField) {
     return;
   }
@@ -712,10 +815,12 @@ function toggleKeeper(playerId) {
   accrueTime();
   if (player.goalie) {
     player.goalie = false;
+    addHistory(`${player.name} removed as keeper`, "keeper");
   } else {
     state.roster.forEach((item) => {
       item.goalie = item.id === playerId;
     });
+    addHistory(`${player.name} set as keeper`, "keeper");
   }
   saveState();
   render();
@@ -854,7 +959,7 @@ function parsePlayerLine(line) {
 }
 
 function clearRoster() {
-  const confirmed = window.confirm("Clear the roster and all player times?");
+  const confirmed = window.confirm("Clear the roster, all player times, and history?");
   if (!confirmed) {
     return;
   }
@@ -862,10 +967,26 @@ function clearRoster() {
   state.roster = [];
   state.gameMs = 0;
   state.lastSubAtGameMs = 0;
+  state.history = [];
   stopSubAlertLoop();
   state.running = false;
   state.lastTick = null;
   clearPlayerForm();
+  saveState();
+  render();
+}
+
+function clearHistory() {
+  if (!state.history.length) {
+    return;
+  }
+
+  const confirmed = window.confirm("Clear the substitution history?");
+  if (!confirmed) {
+    return;
+  }
+
+  state.history = [];
   saveState();
   render();
 }
@@ -888,6 +1009,9 @@ function handleActionClick(event) {
   }
   if (action === "delete-player") {
     deletePlayer(id);
+  }
+  if (action === "adjust-time") {
+    adjustPlayerTime(id, button.dataset.kind, Number(button.dataset.delta));
   }
 }
 
@@ -922,6 +1046,7 @@ function bindEvents() {
   elements.cancelEditButton.addEventListener("click", clearPlayerForm);
   elements.importBulkButton.addEventListener("click", importBulkPlayers);
   elements.clearRosterButton.addEventListener("click", clearRoster);
+  elements.clearHistoryButton.addEventListener("click", clearHistory);
   window.addEventListener("visibilitychange", () => {
     if (document.visibilityState === "hidden") {
       accrueTime();
