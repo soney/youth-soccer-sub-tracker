@@ -12,9 +12,12 @@ Open `index.html` in a browser, or publish the repo with GitHub Pages. The app s
 - Store names, jersey numbers, lineup state, and game times locally.
 - Track total game clock, each player's field time, and each player's goalie time.
 - Start, stop, reset times, bench everyone, and change the allowed players on the field.
-- Show separate color-coded **On Field** and **Bench** sections in the lineup.
-- Sort bench players by lowest field time so the next player to sub in rises to the top, and mark the next non-keeper to sub out by highest field time.
-- Keep a substitution history log and support manual `+1m` / `-1m` field and goalie time adjustments.
+- Show compact two-column tap-to-toggle **On Field** and **Bench** rows with jersey number, first name, and field time.
+- Keep setup, sound, reset, and sub interval controls tucked behind a collapsible match controls panel.
+- Keep manual `+1m` / `-1m` field-time corrections tucked inside the collapsible controls.
+- Sort bench players by lowest field time so the next player to sub in rises to the top, and use highest field time for the suggested swap-out player.
+- Swap a bench player straight in for the suggested next-out player when the field is full.
+- Keep a substitution history log for subs and time adjustments.
 - Set a substitution interval, get repeating loud sound alerts when it is time to sub, and reset the alert with **Sub Done** or by benching a player.
 - Mobile-first layout for iPhone browser use.
 - PWA metadata and a service worker for add-to-home-screen behavior on supported browsers.

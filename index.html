@@ -15,13 +15,7 @@
   </head>
   <body>
     <div class="app-shell">
-      <header class="app-header">
-        <div>
-          <p class="eyebrow">Match Day</p>
-          <h1>Sub Tracker</h1>
-        </div>
-        <span class="save-pill" id="saveStatus">Saved</span>
-      </header>
+      <span id="saveStatus" hidden>Saved</span>
 
       <main>
         <section class="timer-panel" aria-label="Game timer">
@@ -30,54 +24,60 @@
               <span class="label">Game Clock</span>
               <strong class="game-clock" id="gameClock">00:00</strong>
             </div>
+            <div class="field-count" id="fieldCount">0 of 7</div>
             <button class="primary-action" id="startStopButton" type="button">Start</button>
           </div>
 
-          <div class="lineup-toolbar">
-            <div class="stepper" aria-label="Players on field">
-              <button class="icon-button" id="decreaseLimit" type="button" aria-label="Decrease players on field">-</button>
-              <div class="stepper-value">
-                <span class="label">On Field</span>
-                <strong id="playerLimit">7</strong>
-              </div>
-              <button class="icon-button" id="increaseLimit" type="button" aria-label="Increase players on field">+</button>
-            </div>
-            <div class="field-count" id="fieldCount">0 of 7</div>
-          </div>
-
-          <div class="sub-timer" id="subTimerPanel" aria-label="Substitution timer">
-            <div class="sub-clock-wrap">
-              <span class="label">Next Sub</span>
-              <strong class="sub-clock" id="nextSubClock">05:00</strong>
+          <details class="sub-timer quick-settings" id="subTimerPanel" aria-label="Substitution timer">
+            <summary>
+              <span class="sub-clock-wrap">
+                <span class="label">Next Sub</span>
+                <strong class="sub-clock" id="nextSubClock">05:00</strong>
+              </span>
               <span class="sub-status" id="subStatus">Every 5 min</span>
-            </div>
-            <div class="sub-controls">
-              <div class="stepper compact-stepper" aria-label="Sub interval">
-                <button class="icon-button" id="decreaseSubInterval" type="button" aria-label="Decrease sub interval">-</button>
-                <div class="stepper-value">
-                  <span class="label">Interval</span>
-                  <strong id="subInterval">5m</strong>
+            </summary>
+
+            <div class="settings-body">
+              <div class="lineup-toolbar">
+                <div class="stepper" aria-label="Players on field">
+                  <button class="icon-button" id="decreaseLimit" type="button" aria-label="Decrease players on field">-</button>
+                  <div class="stepper-value">
+                    <span class="label">On Field</span>
+                    <strong id="playerLimit">7</strong>
+                  </div>
+                  <button class="icon-button" id="increaseLimit" type="button" aria-label="Increase players on field">+</button>
                 </div>
-                <button class="icon-button" id="increaseSubInterval" type="button" aria-label="Increase sub interval">+</button>
               </div>
-              <button class="secondary-action" id="subDoneButton" type="button">Sub Done</button>
-            </div>
-            <div class="sound-controls">
-              <button class="secondary-action sound-toggle" id="soundAlertButton" type="button" aria-pressed="true">Sound On</button>
-              <button class="secondary-action" id="testSoundButton" type="button">Test Sound</button>
-            </div>
-          </div>
 
-          <div class="timer-actions">
-            <button class="secondary-action" id="resetTimesButton" type="button">Reset Times</button>
-            <button class="secondary-action" id="benchAllButton" type="button">Bench All</button>
-          </div>
+              <div class="sub-controls">
+                <div class="stepper compact-stepper" aria-label="Sub interval">
+                  <button class="icon-button" id="decreaseSubInterval" type="button" aria-label="Decrease sub interval">-</button>
+                  <div class="stepper-value">
+                    <span class="label">Interval</span>
+                    <strong id="subInterval">5m</strong>
+                  </div>
+                  <button class="icon-button" id="increaseSubInterval" type="button" aria-label="Increase sub interval">+</button>
+                </div>
+                <button class="secondary-action" id="subDoneButton" type="button">Sub Done</button>
+              </div>
+
+              <div class="sound-controls">
+                <button class="secondary-action sound-toggle" id="soundAlertButton" type="button" aria-pressed="true">Sound On</button>
+                <button class="secondary-action" id="testSoundButton" type="button">Test Sound</button>
+              </div>
+
+              <div class="timer-actions">
+                <button class="secondary-action" id="resetTimesButton" type="button">Reset Times</button>
+                <button class="secondary-action" id="benchAllButton" type="button">Bench All</button>
+              </div>
+
+              <details class="corrections-panel">
+                <summary>Time Corrections</summary>
+                <div class="correction-list" id="correctionList"></div>
+              </details>
+            </div>
+          </details>
         </section>
-
-        <nav class="tabs" aria-label="Tracker views">
-          <button class="tab is-active" type="button" data-view="field" aria-controls="fieldView">Field</button>
-          <button class="tab" type="button" data-view="roster" aria-controls="rosterView">Roster</button>
-        </nav>
 
         <section class="view" id="fieldView">
           <div class="section-heading">
@@ -98,6 +98,11 @@
             <div class="history-list" id="historyList"></div>
           </section>
         </section>
+
+        <nav class="tabs" aria-label="Tracker views">
+          <button class="tab is-active" type="button" data-view="field" aria-controls="fieldView">Field</button>
+          <button class="tab" type="button" data-view="roster" aria-controls="rosterView">Roster</button>
+        </nav>
 
         <section class="view" id="rosterView" hidden>
           <form class="player-form" id="playerForm" autocomplete="off">

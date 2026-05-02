@@ -47,6 +47,7 @@ const elements = {
   keeperName: document.querySelector("#keeperName"),
   lineupNotice: document.querySelector("#lineupNotice"),
   playerList: document.querySelector("#playerList"),
+  correctionList: document.querySelector("#correctionList"),
   fieldEmptyState: document.querySelector("#fieldEmptyState"),
   historyList: document.querySelector("#historyList"),
   clearHistoryButton: document.querySelector("#clearHistoryButton"),
@@ -414,6 +415,17 @@ function nextNonKeeperOut(now) {
     })[0] || null;
 }
 
+function nextOutCandidate(now) {
+  return nextNonKeeperOut(now) || activePlayers()
+    .sort((a, b) => {
+      return (getDisplayMs(b, "field", now) - getDisplayMs(a, "field", now)) || comparePlayerNames(a, b);
+    })[0] || null;
+}
+
+function firstName(name) {
+  return String(name).trim().split(/\s+/)[0] || "Player";
+}
+
 function comparePlayerNames(a, b) {
   return a.name.localeCompare(b.name, undefined, { sensitivity: "base" });
 }
@@ -454,9 +466,10 @@ function render() {
     : "";
 
   renderPlayerList(now);
+  renderCorrectionList(now);
   renderRosterList();
   renderHistoryList();
-  elements.fieldEmptyState.hidden = state.roster.length > 0;
+  elements.fieldEmptyState.hidden = state.roster.length !== 0;
 }
 
 function renderSubTimer(now) {
@@ -507,8 +520,6 @@ function renderPlayerList(now) {
   const players = orderedPlayers(now);
   const fieldPlayers = players.filter((player) => player.onField);
   const benchPlayers = players.filter((player) => !player.onField);
-  const nextIn = benchPlayers[0] || null;
-  const nextOut = nextNonKeeperOut(now);
 
   if (!players.length) {
     elements.playerList.innerHTML = "";
@@ -516,16 +527,16 @@ function renderPlayerList(now) {
   }
 
   elements.playerList.innerHTML = [
-    renderLineupGroup("field", "On Field", `${fieldPlayers.length} of ${state.playersOnField}`, fieldPlayers, now, nextIn, nextOut),
+    renderLineupGroup("field", "On Field", `${fieldPlayers.length} of ${state.playersOnField}`, fieldPlayers, now),
     '<div class="lineup-divider" aria-hidden="true"></div>',
-    renderLineupGroup("bench", "Bench", `${benchPlayers.length} waiting`, benchPlayers, now, nextIn, nextOut)
+    renderLineupGroup("bench", "Bench", `${benchPlayers.length} waiting`, benchPlayers, now)
   ].join("");
 }
 
-function renderLineupGroup(kind, title, countText, players, now, nextIn, nextOut) {
+function renderLineupGroup(kind, title, countText, players, now) {
   const emptyText = kind === "field" ? "No players on the field" : "No players on the bench";
   const playerCards = players.length
-    ? players.map((player) => renderPlayerCard(player, now, nextIn, nextOut)).join("")
+    ? players.map((player) => renderPlayerCard(player, now)).join("")
     : `<div class="lineup-empty">${emptyText}</div>`;
 
   return `
@@ -541,71 +552,49 @@ function renderLineupGroup(kind, title, countText, players, now, nextIn, nextOut
   `;
 }
 
-function renderPlayerCard(player, now, nextIn, nextOut) {
+function renderPlayerCard(player, now) {
   const jersey = player.number ? `#${escapeHtml(player.number)}` : "--";
+  const displayName = escapeHtml(firstName(player.name));
   const fieldTime = formatTime(getDisplayMs(player, "field", now));
-  const goalieTime = formatTime(getDisplayMs(player, "goalie", now));
-  const isNextIn = nextIn && player.id === nextIn.id;
-  const isNextOut = nextOut && player.id === nextOut.id;
-  const statusClass = isNextOut
-    ? "is-out"
-    : player.goalie && player.onField
-      ? "is-keeper"
-      : player.onField
-        ? "is-field"
-        : isNextIn
-          ? "is-next"
-          : "";
-  const statusText = isNextOut
-    ? "Next Out"
-    : player.goalie && player.onField
-      ? "Keeper"
-      : player.onField
-        ? "On Field"
-        : isNextIn
-          ? "Next In"
-          : "Bench";
-  const canAdd = player.onField || activePlayers().length < state.playersOnField;
-  const toggleText = player.onField ? "Bench" : "Field";
+  const activeCount = activePlayers().length;
+  const swapTarget = !player.onField && activeCount >= state.playersOnField ? nextOutCandidate(now) : null;
+  const canToggle = player.onField || activeCount < state.playersOnField || Boolean(swapTarget);
+  const actionLabel = player.onField
+    ? `Move ${player.name} to the bench`
+    : swapTarget
+      ? `Swap ${player.name} in for ${swapTarget.name}`
+      : `Move ${player.name} to the field`;
 
   return `
-    <article class="player-card ${player.onField ? "is-field" : "is-bench"} ${player.goalie ? "is-keeper" : ""}">
-      <div class="player-top">
-        <div class="jersey">${jersey}</div>
-        <div class="player-name">
-          <strong>${escapeHtml(player.name)}</strong>
-          <span>${player.number ? `No. ${escapeHtml(player.number)}` : "No number"}</span>
-        </div>
-        <span class="status-badge ${statusClass}">${statusText}</span>
-      </div>
-      <div class="stats-grid">
-        <div class="stat">
-          <span>Field</span>
-          <strong>${fieldTime}</strong>
-        </div>
-        <div class="stat">
-          <span>Goalie</span>
-          <strong>${goalieTime}</strong>
-        </div>
-      </div>
-      <div class="time-adjustments" aria-label="Manual time adjustments for ${escapeHtml(player.name)}">
-        <div class="adjust-row">
-          <span>Field</span>
-          <button class="adjust-button" type="button" data-action="adjust-time" data-kind="field" data-delta="-${MINUTE_MS}" data-id="${player.id}" aria-label="Subtract 1 minute field time for ${escapeHtml(player.name)}">-1m</button>
-          <button class="adjust-button" type="button" data-action="adjust-time" data-kind="field" data-delta="${MINUTE_MS}" data-id="${player.id}" aria-label="Add 1 minute field time for ${escapeHtml(player.name)}">+1m</button>
-        </div>
-        <div class="adjust-row">
-          <span>Goalie</span>
-          <button class="adjust-button" type="button" data-action="adjust-time" data-kind="goalie" data-delta="-${MINUTE_MS}" data-id="${player.id}" aria-label="Subtract 1 minute goalie time for ${escapeHtml(player.name)}">-1m</button>
-          <button class="adjust-button" type="button" data-action="adjust-time" data-kind="goalie" data-delta="${MINUTE_MS}" data-id="${player.id}" aria-label="Add 1 minute goalie time for ${escapeHtml(player.name)}">+1m</button>
-        </div>
-      </div>
-      <div class="card-actions">
-        <button class="secondary-action" type="button" data-action="toggle-field" data-id="${player.id}" ${canAdd ? "" : "disabled"}>${toggleText}</button>
-        <button class="secondary-action keeper-button ${player.goalie && player.onField ? "is-active" : ""}" type="button" data-action="toggle-keeper" data-id="${player.id}" ${player.onField ? "" : "disabled"}>Keeper</button>
-      </div>
-    </article>
+    <button class="player-card ${player.onField ? "is-field" : "is-bench"}" type="button" data-action="toggle-field" data-id="${player.id}" ${canToggle ? "" : "disabled"} aria-label="${escapeHtml(actionLabel)}">
+      <div class="jersey">${jersey}</div>
+      <strong class="player-first-name">${displayName}</strong>
+      <span class="player-field-time">${fieldTime}</span>
+    </button>
   `;
+}
+
+function renderCorrectionList(now) {
+  if (!state.roster.length) {
+    elements.correctionList.innerHTML = '<div class="correction-empty">No players yet</div>';
+    return;
+  }
+
+  elements.correctionList.innerHTML = orderedPlayers(now).map((player) => {
+    const jersey = player.number ? `#${escapeHtml(player.number)}` : "--";
+    const name = escapeHtml(firstName(player.name));
+    const fieldTime = formatTime(getDisplayMs(player, "field", now));
+
+    return `
+      <div class="correction-row">
+        <div class="jersey">${jersey}</div>
+        <strong>${name}</strong>
+        <span>${fieldTime}</span>
+        <button class="small-action" type="button" data-action="adjust-time" data-kind="field" data-delta="-${MINUTE_MS}" data-id="${player.id}" aria-label="Subtract 1 minute field time for ${escapeHtml(player.name)}">-1m</button>
+        <button class="small-action" type="button" data-action="adjust-time" data-kind="field" data-delta="${MINUTE_MS}" data-id="${player.id}" aria-label="Add 1 minute field time for ${escapeHtml(player.name)}">+1m</button>
+      </div>
+    `;
+  }).join("");
 }
 
 function renderHistoryList() {
@@ -789,7 +778,22 @@ function togglePlayerField(playerId) {
 
   accrueTime();
   const wasOnField = player.onField;
-  if (!player.onField && activePlayers().length >= state.playersOnField) {
+  const swapTarget = !player.onField && activePlayers().length >= state.playersOnField
+    ? nextOutCandidate(Date.now())
+    : null;
+  if (!player.onField && activePlayers().length >= state.playersOnField && !swapTarget) {
+    render();
+    return;
+  }
+
+  if (swapTarget) {
+    swapTarget.onField = false;
+    swapTarget.goalie = false;
+    player.onField = true;
+    player.goalie = false;
+    addHistory(`${player.name} in, ${swapTarget.name} out`, "sub");
+    resetSubCountdown();
+    saveState();
     render();
     return;
   }
@@ -1041,6 +1045,7 @@ function bindEvents() {
     });
   });
   elements.playerList.addEventListener("click", handleActionClick);
+  elements.correctionList.addEventListener("click", handleActionClick);
   elements.rosterList.addEventListener("click", handleActionClick);
   elements.playerForm.addEventListener("submit", addOrUpdatePlayer);
   elements.cancelEditButton.addEventListener("click", clearPlayerForm);
