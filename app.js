@@ -21,6 +21,7 @@ const fallbackState = {
 
 let state = loadState();
 let saveStatusTimer = null;
+let exportRosterStatusTimer = null;
 let audioContext = null;
 let subAlertIntervalId = null;
 let alertingSubAtGameMs = null;
@@ -63,6 +64,7 @@ const elements = {
   bulkNames: document.querySelector("#bulkNames"),
   importBulkButton: document.querySelector("#importBulkButton"),
   rosterList: document.querySelector("#rosterList"),
+  exportRosterButton: document.querySelector("#exportRosterButton"),
   clearRosterButton: document.querySelector("#clearRosterButton")
 };
 
@@ -469,6 +471,7 @@ function render() {
   renderCorrectionList(now);
   renderRosterList();
   renderHistoryList();
+  elements.exportRosterButton.disabled = state.roster.length === 0;
   elements.fieldEmptyState.hidden = state.roster.length !== 0;
 }
 
@@ -939,6 +942,60 @@ function importBulkPlayers() {
   render();
 }
 
+function formatRosterForExport() {
+  return state.roster.map((player) => {
+    return player.number ? `${player.name} #${player.number}` : player.name;
+  }).join("\n");
+}
+
+function exportRosterToClipboard() {
+  if (!state.roster.length) {
+    return;
+  }
+
+  const rosterText = formatRosterForExport();
+  copyTextToClipboard(rosterText)
+    .then(() => {
+      flashExportRosterButton("Copied");
+    })
+    .catch(() => {
+      flashExportRosterButton("Copy failed");
+    });
+}
+
+function copyTextToClipboard(text) {
+  if (navigator.clipboard && typeof navigator.clipboard.writeText === "function") {
+    return navigator.clipboard.writeText(text);
+  }
+
+  return new Promise((resolve, reject) => {
+    const textarea = document.createElement("textarea");
+    textarea.value = text;
+    textarea.setAttribute("readonly", "");
+    textarea.style.position = "fixed";
+    textarea.style.top = "-1000px";
+    document.body.appendChild(textarea);
+    textarea.select();
+
+    try {
+      const copied = document.execCommand("copy");
+      document.body.removeChild(textarea);
+      copied ? resolve() : reject(new Error("Copy command failed"));
+    } catch (error) {
+      document.body.removeChild(textarea);
+      reject(error);
+    }
+  });
+}
+
+function flashExportRosterButton(message) {
+  window.clearTimeout(exportRosterStatusTimer);
+  elements.exportRosterButton.textContent = message;
+  exportRosterStatusTimer = window.setTimeout(() => {
+    elements.exportRosterButton.textContent = "Copy Roster";
+  }, 1200);
+}
+
 function parsePlayerLine(line) {
   const startingNumber = line.match(/^#?\s*(\d{1,3})\s+(.+)$/);
   if (startingNumber) {
@@ -1050,6 +1107,7 @@ function bindEvents() {
   elements.playerForm.addEventListener("submit", addOrUpdatePlayer);
   elements.cancelEditButton.addEventListener("click", clearPlayerForm);
   elements.importBulkButton.addEventListener("click", importBulkPlayers);
+  elements.exportRosterButton.addEventListener("click", exportRosterToClipboard);
   elements.clearRosterButton.addEventListener("click", clearRoster);
   elements.clearHistoryButton.addEventListener("click", clearHistory);
   window.addEventListener("visibilitychange", () => {

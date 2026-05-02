@@ -747,6 +747,11 @@ h2 {
   margin-top: 12px;
 }
 
+.export-action {
+  width: 100%;
+  margin-top: 12px;
+}
+
 .roster-row {
   padding: 10px;
 }

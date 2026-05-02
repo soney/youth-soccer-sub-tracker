@@ -9,6 +9,7 @@ Open `index.html` in a browser, or publish the repo with GitHub Pages. The app s
 ## Features
 
 - Add players one at a time or paste a list.
+- Copy/export the current roster as a paste-friendly text list.
 - Store names, jersey numbers, lineup state, and game times locally.
 - Track total game clock, each player's field time, and each player's goalie time.
 - Start, stop, reset times, bench everyone, and change the allowed players on the field.
