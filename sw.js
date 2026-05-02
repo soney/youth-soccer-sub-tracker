@@ -1,4 +1,4 @@
-const CACHE_NAME = "sub-tracker-v7";
+const CACHE_NAME = "sub-tracker-v8";
 const APP_ASSETS = [
   "./",
   "./index.html",
