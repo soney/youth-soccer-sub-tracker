@@ -456,63 +456,95 @@ function syncSubAlertLoop(isDue) {
 
 function renderPlayerList(now) {
   const players = orderedPlayers(now);
-  const nextIn = players.find((player) => !player.onField);
+  const fieldPlayers = players.filter((player) => player.onField);
+  const benchPlayers = players.filter((player) => !player.onField);
+  const nextIn = benchPlayers[0] || null;
   const nextOut = nextNonKeeperOut(now);
 
-  elements.playerList.innerHTML = players.map((player) => {
-    const jersey = player.number ? `#${escapeHtml(player.number)}` : "--";
-    const fieldTime = formatTime(getDisplayMs(player, "field", now));
-    const goalieTime = formatTime(getDisplayMs(player, "goalie", now));
-    const isNextIn = nextIn && player.id === nextIn.id;
-    const isNextOut = nextOut && player.id === nextOut.id;
-    const statusClass = isNextOut
-      ? "is-out"
-      : player.goalie && player.onField
-        ? "is-keeper"
-        : player.onField
+  if (!players.length) {
+    elements.playerList.innerHTML = "";
+    return;
+  }
+
+  elements.playerList.innerHTML = [
+    renderLineupGroup("field", "On Field", `${fieldPlayers.length} of ${state.playersOnField}`, fieldPlayers, now, nextIn, nextOut),
+    '<div class="lineup-divider" aria-hidden="true"></div>',
+    renderLineupGroup("bench", "Bench", `${benchPlayers.length} waiting`, benchPlayers, now, nextIn, nextOut)
+  ].join("");
+}
+
+function renderLineupGroup(kind, title, countText, players, now, nextIn, nextOut) {
+  const emptyText = kind === "field" ? "No players on the field" : "No players on the bench";
+  const playerCards = players.length
+    ? players.map((player) => renderPlayerCard(player, now, nextIn, nextOut)).join("")
+    : `<div class="lineup-empty">${emptyText}</div>`;
+
+  return `
+    <section class="lineup-section is-${kind}" aria-label="${title}">
+      <div class="lineup-section-header">
+        <h3>${title}</h3>
+        <span>${countText}</span>
+      </div>
+      <div class="lineup-section-list">
+        ${playerCards}
+      </div>
+    </section>
+  `;
+}
+
+function renderPlayerCard(player, now, nextIn, nextOut) {
+  const jersey = player.number ? `#${escapeHtml(player.number)}` : "--";
+  const fieldTime = formatTime(getDisplayMs(player, "field", now));
+  const goalieTime = formatTime(getDisplayMs(player, "goalie", now));
+  const isNextIn = nextIn && player.id === nextIn.id;
+  const isNextOut = nextOut && player.id === nextOut.id;
+  const statusClass = isNextOut
+    ? "is-out"
+    : player.goalie && player.onField
+      ? "is-keeper"
+      : player.onField
         ? "is-field"
         : isNextIn
           ? "is-next"
           : "";
-    const statusText = isNextOut
-      ? "Next Out"
-      : player.goalie && player.onField
-        ? "Keeper"
-        : player.onField
+  const statusText = isNextOut
+    ? "Next Out"
+    : player.goalie && player.onField
+      ? "Keeper"
+      : player.onField
         ? "On Field"
         : isNextIn
           ? "Next In"
           : "Bench";
-    const canAdd = player.onField || activePlayers().length < state.playersOnField;
-    const toggleText = player.onField ? "Bench" : "Field";
+  const canAdd = player.onField || activePlayers().length < state.playersOnField;
+  const toggleText = player.onField ? "Bench" : "Field";
 
-    return `
-      <article class="player-card ${player.onField ? "is-field" : ""} ${player.goalie ? "is-keeper" : ""}">
-        <div class="player-top">
-          <div class="jersey">${jersey}</div>
-          <div class="player-name">
-            <strong>${escapeHtml(player.name)}</strong>
-            <span>${player.number ? `No. ${escapeHtml(player.number)}` : "No number"}</span>
-          </div>
-          <span class="status-badge ${statusClass}">${statusText}</span>
+  return `
+    <article class="player-card ${player.onField ? "is-field" : "is-bench"} ${player.goalie ? "is-keeper" : ""}">
+      <div class="player-top">
+        <div class="jersey">${jersey}</div>
+        <div class="player-name">
+          <strong>${escapeHtml(player.name)}</strong>
+          <span>${player.number ? `No. ${escapeHtml(player.number)}` : "No number"}</span>
         </div>
-        <div class="stats-grid">
-          <div class="stat">
-            <span>Field</span>
-            <strong>${fieldTime}</strong>
-          </div>
-          <div class="stat">
-            <span>Goalie</span>
-            <strong>${goalieTime}</strong>
-          </div>
+        <span class="status-badge ${statusClass}">${statusText}</span>
+      </div>
+      <div class="stats-grid">
+        <div class="stat">
+          <span>Field</span>
+          <strong>${fieldTime}</strong>
         </div>
-        <div class="card-actions">
-          <button class="secondary-action" type="button" data-action="toggle-field" data-id="${player.id}" ${canAdd ? "" : "disabled"}>${toggleText}</button>
-          <button class="secondary-action keeper-button ${player.goalie && player.onField ? "is-active" : ""}" type="button" data-action="toggle-keeper" data-id="${player.id}" ${player.onField ? "" : "disabled"}>Keeper</button>
+        <div class="stat">
+          <span>Goalie</span>
+          <strong>${goalieTime}</strong>
         </div>
-      </article>
-    `;
-  }).join("");
+      </div>
+      <div class="card-actions">
+        <button class="secondary-action" type="button" data-action="toggle-field" data-id="${player.id}" ${canAdd ? "" : "disabled"}>${toggleText}</button>
+        <button class="secondary-action keeper-button ${player.goalie && player.onField ? "is-active" : ""}" type="button" data-action="toggle-keeper" data-id="${player.id}" ${player.onField ? "" : "disabled"}>Keeper</button>
+      </div>
+    </article>
+  `;
 }
 
 function renderRosterList() {

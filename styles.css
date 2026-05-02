@@ -359,6 +359,63 @@ h2 {
   gap: 10px;
 }
 
+.lineup-section {
+  display: grid;
+  gap: 10px;
+  padding: 10px;
+  border-left: 5px solid transparent;
+}
+
+.lineup-section.is-field {
+  border-left-color: var(--green);
+  background: #edf6f1;
+}
+
+.lineup-section.is-bench {
+  border-left-color: var(--gold);
+  background: #fff8e7;
+}
+
+.lineup-section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.lineup-section-header h3 {
+  margin: 0;
+  font-size: 1rem;
+  letter-spacing: 0;
+}
+
+.lineup-section-header span {
+  color: var(--muted);
+  font-size: 0.86rem;
+  font-weight: 850;
+  white-space: nowrap;
+}
+
+.lineup-section-list {
+  display: grid;
+  gap: 10px;
+}
+
+.lineup-divider {
+  height: 2px;
+  border-radius: 999px;
+  background: linear-gradient(90deg, var(--green), var(--gold));
+}
+
+.lineup-empty {
+  border: 1px dashed #c9c1b0;
+  border-radius: 8px;
+  padding: 14px;
+  background: rgba(255, 255, 255, 0.62);
+  color: var(--muted);
+  font-weight: 750;
+}
+
 .player-card,
 .roster-row {
   border: 1px solid var(--line);
@@ -374,6 +431,12 @@ h2 {
 
 .player-card.is-field {
   border-color: rgba(23, 107, 77, 0.38);
+  background: #fbfffd;
+}
+
+.player-card.is-bench {
+  border-color: rgba(240, 180, 41, 0.45);
+  background: #fffdf6;
 }
 
 .player-card.is-keeper {
@@ -589,7 +652,7 @@ h2 {
     grid-template-columns: 1fr;
   }
 
-  .player-list {
+  .lineup-section-list {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
