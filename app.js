@@ -5,6 +5,7 @@ const MIN_SUB_INTERVAL_MINUTES = 0;
 const MAX_SUB_INTERVAL_MINUTES = 30;
 const MINUTE_MS = 60 * 1000;
 const MAX_HISTORY_ENTRIES = 120;
+const ROSTER_QUERY_PARAM = "roster";
 
 const fallbackState = {
   playersOnField: 7,
@@ -22,6 +23,7 @@ const fallbackState = {
 let state = loadState();
 let saveStatusTimer = null;
 let exportRosterStatusTimer = null;
+let copyRosterLinkStatusTimer = null;
 let audioContext = null;
 let subAlertIntervalId = null;
 let alertingSubAtGameMs = null;
@@ -65,6 +67,7 @@ const elements = {
   importBulkButton: document.querySelector("#importBulkButton"),
   rosterList: document.querySelector("#rosterList"),
   exportRosterButton: document.querySelector("#exportRosterButton"),
+  copyRosterLinkButton: document.querySelector("#copyRosterLinkButton"),
   clearRosterButton: document.querySelector("#clearRosterButton")
 };
 
@@ -109,12 +112,15 @@ function createFallbackState() {
 }
 
 function normalizePlayer(player) {
+  const absent = Boolean(player.absent);
+  const onField = !absent && Boolean(player.onField);
   return {
     id: sanitizeId(player.id || createId()),
     name: String(player.name || "").trim() || "Player",
     number: String(player.number || "").replace(/[^\d]/g, "").slice(0, 3),
-    onField: Boolean(player.onField),
-    goalie: Boolean(player.goalie),
+    absent,
+    onField,
+    goalie: onField && Boolean(player.goalie),
     fieldMs: normalizeMs(player.fieldMs),
     goalieMs: normalizeMs(player.goalieMs)
   };
@@ -302,10 +308,10 @@ function accrueTime(now = Date.now()) {
 
   state.gameMs += delta;
   state.roster.forEach((player) => {
-    if (player.onField) {
+    if (!player.absent && player.onField) {
       player.fieldMs += delta;
     }
-    if (player.onField && player.goalie) {
+    if (!player.absent && player.onField && player.goalie) {
       player.goalieMs += delta;
     }
   });
@@ -314,7 +320,7 @@ function accrueTime(now = Date.now()) {
 
 function getDisplayMs(player, type, now = Date.now()) {
   const base = type === "goalie" ? player.goalieMs : player.fieldMs;
-  if (!state.running || !state.lastTick || !player.onField) {
+  if (!state.running || !state.lastTick || player.absent || !player.onField) {
     return base;
   }
 
@@ -369,11 +375,15 @@ function escapeHtml(value) {
 }
 
 function activePlayers() {
-  return state.roster.filter((player) => player.onField);
+  return state.roster.filter((player) => !player.absent && player.onField);
+}
+
+function availablePlayers() {
+  return state.roster.filter((player) => !player.absent);
 }
 
 function keeper() {
-  return state.roster.find((player) => player.onField && player.goalie) || null;
+  return state.roster.find((player) => !player.absent && player.onField && player.goalie) || null;
 }
 
 function findPlayer(playerId) {
@@ -392,7 +402,7 @@ function addHistory(message, type = "info") {
 }
 
 function orderedPlayers(now) {
-  return [...state.roster].sort((a, b) => {
+  return availablePlayers().sort((a, b) => {
     if (a.onField !== b.onField) {
       return a.onField ? -1 : 1;
     }
@@ -407,21 +417,6 @@ function orderedPlayers(now) {
     }
     return (aFieldMs - bFieldMs) || comparePlayerNames(a, b);
   });
-}
-
-function nextNonKeeperOut(now) {
-  return activePlayers()
-    .filter((player) => !player.goalie)
-    .sort((a, b) => {
-      return (getDisplayMs(b, "field", now) - getDisplayMs(a, "field", now)) || comparePlayerNames(a, b);
-    })[0] || null;
-}
-
-function nextOutCandidate(now) {
-  return nextNonKeeperOut(now) || activePlayers()
-    .sort((a, b) => {
-      return (getDisplayMs(b, "field", now) - getDisplayMs(a, "field", now)) || comparePlayerNames(a, b);
-    })[0] || null;
 }
 
 function firstName(name) {
@@ -472,6 +467,7 @@ function render() {
   renderRosterList();
   renderHistoryList();
   elements.exportRosterButton.disabled = state.roster.length === 0;
+  elements.copyRosterLinkButton.disabled = state.roster.length === 0;
   elements.fieldEmptyState.hidden = state.roster.length !== 0;
 }
 
@@ -524,7 +520,7 @@ function renderPlayerList(now) {
   const fieldPlayers = players.filter((player) => player.onField);
   const benchPlayers = players.filter((player) => !player.onField);
 
-  if (!players.length) {
+  if (!state.roster.length) {
     elements.playerList.innerHTML = "";
     return;
   }
@@ -560,12 +556,12 @@ function renderPlayerCard(player, now) {
   const displayName = escapeHtml(firstName(player.name));
   const fieldTime = formatTime(getDisplayMs(player, "field", now));
   const activeCount = activePlayers().length;
-  const swapTarget = !player.onField && activeCount >= state.playersOnField ? nextOutCandidate(now) : null;
-  const canToggle = player.onField || activeCount < state.playersOnField || Boolean(swapTarget);
+  const fieldIsFull = activeCount >= state.playersOnField;
+  const canToggle = player.onField || !fieldIsFull;
   const actionLabel = player.onField
     ? `Move ${player.name} to the bench`
-    : swapTarget
-      ? `Swap ${player.name} in for ${swapTarget.name}`
+    : fieldIsFull
+      ? `${player.name} cannot move to the field while the field is full`
       : `Move ${player.name} to the field`;
 
   return `
@@ -583,7 +579,13 @@ function renderCorrectionList(now) {
     return;
   }
 
-  elements.correctionList.innerHTML = orderedPlayers(now).map((player) => {
+  const players = orderedPlayers(now);
+  if (!players.length) {
+    elements.correctionList.innerHTML = '<div class="correction-empty">No available players</div>';
+    return;
+  }
+
+  elements.correctionList.innerHTML = players.map((player) => {
     const jersey = player.number ? `#${escapeHtml(player.number)}` : "--";
     const name = escapeHtml(firstName(player.name));
     const fieldTime = formatTime(getDisplayMs(player, "field", now));
@@ -624,14 +626,21 @@ function renderHistoryList() {
 function renderRosterList() {
   elements.rosterList.innerHTML = state.roster.map((player) => {
     const jersey = player.number ? `#${escapeHtml(player.number)}` : "--";
+    const numberText = player.number ? `No. ${escapeHtml(player.number)}` : "No number";
+    const statusText = player.absent ? `Absent - ${numberText}` : numberText;
+    const absenceButtonText = player.absent ? "Present" : "Absent";
+    const absenceActionLabel = player.absent
+      ? `Mark ${player.name} present`
+      : `Mark ${player.name} absent`;
     return `
-      <article class="roster-row">
+      <article class="roster-row ${player.absent ? "is-absent" : ""}">
         <div class="jersey">${jersey}</div>
         <div class="roster-name">
           <strong>${escapeHtml(player.name)}</strong>
-          <span>${player.number ? `No. ${escapeHtml(player.number)}` : "No number"}</span>
+          <span>${statusText}</span>
         </div>
         <div class="roster-actions">
+          <button class="small-action absence-toggle ${player.absent ? "is-absent" : ""}" type="button" data-action="toggle-absent" data-id="${player.id}" aria-pressed="${player.absent}" aria-label="${escapeHtml(absenceActionLabel)}">${absenceButtonText}</button>
           <button class="small-action" type="button" data-action="edit-player" data-id="${player.id}">Edit</button>
           <button class="small-action delete" type="button" data-action="delete-player" data-id="${player.id}">Delete</button>
         </div>
@@ -775,28 +784,13 @@ function adjustPlayerTime(playerId, kind, deltaMs) {
 
 function togglePlayerField(playerId) {
   const player = findPlayer(playerId);
-  if (!player) {
+  if (!player || player.absent) {
     return;
   }
 
   accrueTime();
   const wasOnField = player.onField;
-  const swapTarget = !player.onField && activePlayers().length >= state.playersOnField
-    ? nextOutCandidate(Date.now())
-    : null;
-  if (!player.onField && activePlayers().length >= state.playersOnField && !swapTarget) {
-    render();
-    return;
-  }
-
-  if (swapTarget) {
-    swapTarget.onField = false;
-    swapTarget.goalie = false;
-    player.onField = true;
-    player.goalie = false;
-    addHistory(`${player.name} in, ${swapTarget.name} out`, "sub");
-    resetSubCountdown();
-    saveState();
+  if (!player.onField && activePlayers().length >= state.playersOnField) {
     render();
     return;
   }
@@ -813,9 +807,32 @@ function togglePlayerField(playerId) {
   render();
 }
 
+function togglePlayerAbsent(playerId) {
+  const player = findPlayer(playerId);
+  if (!player) {
+    return;
+  }
+
+  accrueTime();
+  const wasOnField = player.onField;
+  player.absent = !player.absent;
+  if (player.absent) {
+    player.onField = false;
+    player.goalie = false;
+    addHistory(`${player.name} marked absent`, "absent");
+    if (wasOnField) {
+      resetSubCountdown();
+    }
+  } else {
+    addHistory(`${player.name} marked present`, "present");
+  }
+  saveState();
+  render();
+}
+
 function toggleKeeper(playerId) {
   const player = findPlayer(playerId);
-  if (!player || !player.onField) {
+  if (!player || player.absent || !player.onField) {
     return;
   }
 
@@ -852,15 +869,7 @@ function addOrUpdatePlayer(event) {
       player.number = number;
     }
   } else {
-    state.roster.push({
-      id: createId(),
-      name,
-      number,
-      onField: false,
-      goalie: false,
-      fieldMs: 0,
-      goalieMs: 0
-    });
+    state.roster.push(createRosterPlayer(name, number));
   }
 
   clearPlayerForm();
@@ -910,42 +919,86 @@ function clearPlayerForm() {
 }
 
 function importBulkPlayers() {
-  const lines = elements.bulkNames.value
-    .split(/\r?\n/)
-    .map((line) => line.trim())
-    .filter(Boolean);
-
-  if (!lines.length) {
+  const parsedPlayers = parseRosterText(elements.bulkNames.value);
+  if (!parsedPlayers.length) {
     elements.bulkNames.focus();
     return;
   }
 
   accrueTime();
-  lines.forEach((line) => {
-    const parsed = parsePlayerLine(line);
-    if (!parsed.name) {
-      return;
-    }
-    state.roster.push({
-      id: createId(),
-      name: parsed.name,
-      number: parsed.number,
-      onField: false,
-      goalie: false,
-      fieldMs: 0,
-      goalieMs: 0
-    });
-  });
-
+  addParsedRosterPlayers(parsedPlayers);
   elements.bulkNames.value = "";
   saveState();
   render();
+}
+
+function importRosterFromQuery() {
+  const params = new URLSearchParams(window.location.search);
+  const rosterText = params.get(ROSTER_QUERY_PARAM);
+  if (!rosterText) {
+    return;
+  }
+
+  const parsedPlayers = parseRosterText(rosterText);
+  if (!parsedPlayers.length) {
+    return;
+  }
+
+  accrueTime();
+  const addedCount = addParsedRosterPlayers(parsedPlayers, { ignoreDuplicates: true });
+  if (addedCount > 0) {
+    saveState(false);
+  }
+}
+
+function addParsedRosterPlayers(parsedPlayers, options = {}) {
+  const ignoreDuplicates = Boolean(options.ignoreDuplicates);
+  const rosterKeys = ignoreDuplicates ? new Set(state.roster.map(rosterPlayerKey)) : null;
+  let addedCount = 0;
+
+  parsedPlayers.forEach((player) => {
+    if (!player.name) {
+      return;
+    }
+
+    if (ignoreDuplicates) {
+      const key = rosterKey(player.name, player.number);
+      if (rosterKeys.has(key)) {
+        return;
+      }
+      rosterKeys.add(key);
+    }
+
+    state.roster.push(createRosterPlayer(player.name, player.number));
+    addedCount += 1;
+  });
+
+  return addedCount;
+}
+
+function createRosterPlayer(name, number) {
+  return {
+    id: createId(),
+    name,
+    number,
+    absent: false,
+    onField: false,
+    goalie: false,
+    fieldMs: 0,
+    goalieMs: 0
+  };
 }
 
 function formatRosterForExport() {
   return state.roster.map((player) => {
     return player.number ? `${player.name} #${player.number}` : player.name;
   }).join("\n");
+}
+
+function formatRosterLink() {
+  const url = new URL(window.location.href);
+  url.searchParams.set(ROSTER_QUERY_PARAM, formatRosterForExport());
+  return url.toString();
 }
 
 function exportRosterToClipboard() {
@@ -960,6 +1013,20 @@ function exportRosterToClipboard() {
     })
     .catch(() => {
       flashExportRosterButton("Copy failed");
+    });
+}
+
+function copyRosterLinkToClipboard() {
+  if (!state.roster.length) {
+    return;
+  }
+
+  copyTextToClipboard(formatRosterLink())
+    .then(() => {
+      flashRosterLinkButton("Link copied");
+    })
+    .catch(() => {
+      flashRosterLinkButton("Copy failed");
     });
 }
 
@@ -996,6 +1063,21 @@ function flashExportRosterButton(message) {
   }, 1200);
 }
 
+function flashRosterLinkButton(message) {
+  window.clearTimeout(copyRosterLinkStatusTimer);
+  elements.copyRosterLinkButton.textContent = message;
+  copyRosterLinkStatusTimer = window.setTimeout(() => {
+    elements.copyRosterLinkButton.textContent = "Copy Link";
+  }, 1200);
+}
+
+function parseRosterText(text) {
+  return String(text)
+    .split(/\r?\n/)
+    .map((line) => parsePlayerLine(line.trim()))
+    .filter((player) => player.name);
+}
+
 function parsePlayerLine(line) {
   const startingNumber = line.match(/^#?\s*(\d{1,3})\s+(.+)$/);
   if (startingNumber) {
@@ -1017,6 +1099,16 @@ function parsePlayerLine(line) {
     name: line,
     number: ""
   };
+}
+
+function rosterPlayerKey(player) {
+  return rosterKey(player.name, player.number);
+}
+
+function rosterKey(name, number) {
+  const normalizedName = String(name).trim().replace(/\s+/g, " ").toLocaleLowerCase();
+  const normalizedNumber = String(number || "").replace(/[^\d]/g, "").slice(0, 3);
+  return `${normalizedName}|${normalizedNumber}`;
 }
 
 function clearRoster() {
@@ -1061,6 +1153,9 @@ function handleActionClick(event) {
   const { action, id } = button.dataset;
   if (action === "toggle-field") {
     togglePlayerField(id);
+  }
+  if (action === "toggle-absent") {
+    togglePlayerAbsent(id);
   }
   if (action === "toggle-keeper") {
     toggleKeeper(id);
@@ -1108,6 +1203,7 @@ function bindEvents() {
   elements.cancelEditButton.addEventListener("click", clearPlayerForm);
   elements.importBulkButton.addEventListener("click", importBulkPlayers);
   elements.exportRosterButton.addEventListener("click", exportRosterToClipboard);
+  elements.copyRosterLinkButton.addEventListener("click", copyRosterLinkToClipboard);
   elements.clearRosterButton.addEventListener("click", clearRoster);
   elements.clearHistoryButton.addEventListener("click", clearHistory);
   window.addEventListener("visibilitychange", () => {
@@ -1129,6 +1225,7 @@ function registerServiceWorker() {
 }
 
 bindEvents();
+importRosterFromQuery();
 setView(state.activeView);
 render();
 window.setInterval(render, 1000);

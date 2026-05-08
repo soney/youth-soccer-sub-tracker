@@ -660,6 +660,14 @@ h2 {
   border-left-color: var(--coral);
 }
 
+.history-item.is-absent {
+  border-left-color: var(--coral);
+}
+
+.history-item.is-present {
+  border-left-color: var(--blue);
+}
+
 .history-item strong,
 .history-item span {
   display: block;
@@ -747,17 +755,30 @@ h2 {
   margin-top: 12px;
 }
 
+.export-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-top: 12px;
+}
+
 .export-action {
   width: 100%;
-  margin-top: 12px;
 }
 
 .roster-row {
   padding: 10px;
 }
 
+.roster-row.is-absent {
+  border-color: rgba(200, 76, 58, 0.35);
+  background: #fff8f6;
+}
+
 .roster-actions {
   align-items: center;
+  flex-wrap: wrap;
+  justify-content: flex-end;
 }
 
 .small-action {
@@ -773,6 +794,12 @@ h2 {
 
 .small-action.delete {
   color: #943626;
+}
+
+.absence-toggle.is-absent {
+  border-color: rgba(23, 107, 77, 0.28);
+  background: #edf6f1;
+  color: var(--green-dark);
 }
 
 @media (min-width: 620px) {
